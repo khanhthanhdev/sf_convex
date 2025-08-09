@@ -14,6 +14,7 @@ try:
     from app.core.celery_app import celery_app
     from app.tasks.hello_tasks import hello_task, add_numbers, long_running_task
     from app.tasks.video_tasks import generate_video_task, edit_scene_task
+    from app.api.video import router as video_router
 except ImportError:
     # Fallback for when running from different directories
     import sys
@@ -30,6 +31,7 @@ except ImportError:
     from app.core.celery_app import celery_app
     from app.tasks.hello_tasks import hello_task, add_numbers, long_running_task
     from app.tasks.video_tasks import generate_video_task, edit_scene_task
+    from app.api.video import router as video_router
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -96,6 +98,9 @@ class TaskStatusResponse(BaseModel):
     result: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+
+# Mount API routers
+app.include_router(video_router, prefix=settings.API_PREFIX)
 
 # Basic routes
 @app.get("/", response_model=dict)
