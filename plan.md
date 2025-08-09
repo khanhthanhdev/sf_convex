@@ -5,9 +5,9 @@ This plan tightens contracts, state, security, and delivery for a 1-month MVP. I
 ## 0) Locked Decisions
 
 - Job queue: Celery + Redis (retry with backoff, visibility timeout).
-- Rendering isolation: Dockerized Manim workers with resource limits.
+- Rendering isolation: Dockerized Manim workers 
 - Storage: S3 with versioned keys; CloudFront distribution for delivery.
-- Auth: NextAuth (GitHub/Google) + Convex auth adapter for a stable userId.
+- Auth: Convex auth adapter for a stable userId.
 - Webhooks: HMAC-signed with timestamp, both directions (Convex → FastAPI and FastAPI → Convex).
 - Scene model: Frame-accurate scene boundaries and status state machine.
 

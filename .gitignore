@@ -1,56 +1,13 @@
-# Python
+# Python-generated files
 __pycache__/
-*.py[cod]
-*.so
-*.egg
-*.egg-info/
-dist/
+*.py[oc]
 build/
-.eggs/
-*.manifest
-*.spec
+dist/
+wheels/
+*.egg-info
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# VS Code
-.vscode/
-
-# Environment
-.env
+# Virtual environments
 .venv
-env/
-venv/
-ENV/
+models
 
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Lock files
-poetry.lock
-Pipfile.lock
-uv.lock
-
-# Frontend
-node_modules/
-*.tsbuildinfo
-
-# Others
-*.sqlite3
-*.db
-*.bak
-*.tmp
-
-# Models
-*.onnx
-*.bin
-backend/models
-
-# Ignore frontend build
-frontend/dist/
-frontend/build/
-frontend/node_modules
+.env 

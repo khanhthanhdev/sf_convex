@@ -1,2 +1,0 @@
-PLEASE DO NOT create another color background Rectangles. Default background (Black) is enough.
-PLEASE DO NOT use BLACK color for any text.
