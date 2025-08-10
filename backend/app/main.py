@@ -13,8 +13,11 @@ try:
     from app.core.redis_client import redis_client
     from app.core.celery_app import celery_app
     from app.tasks.hello_tasks import hello_task, add_numbers, long_running_task
-    from app.tasks.video_tasks import generate_video_task, edit_scene_task
+    # Video tasks are now organized by purpose:
+    # - video_tasks.py: Low-level agent operations  
+    # - video_generation_tasks.py: High-level orchestrated workflows
     from app.api.video import router as video_router
+    from app.api.video_generation import router as video_generation_router
 except ImportError:
     # Fallback for when running from different directories
     import sys
@@ -30,7 +33,7 @@ except ImportError:
     from app.core.redis_client import redis_client
     from app.core.celery_app import celery_app
     from app.tasks.hello_tasks import hello_task, add_numbers, long_running_task
-    from app.tasks.video_tasks import generate_video_task, edit_scene_task
+    # Video tasks are now organized by purpose (see above)
     from app.api.video import router as video_router
 
 # Initialize FastAPI app
@@ -76,16 +79,7 @@ class AddNumbersRequest(BaseModel):
 class LongTaskRequest(BaseModel):
     duration: int = Field(default=10, ge=1, le=300, description="Duration in seconds")
 
-class VideoGenerationRequest(BaseModel):
-    project_id: str = Field(..., description="Project identifier")
-    session_id: str = Field(..., description="Video session identifier")
-    scene_count: int = Field(default=3, ge=1, le=20, description="Number of scenes")
-    prompt: str = Field(..., description="Video generation prompt")
-
-class SceneEditRequest(BaseModel):
-    scene_id: str = Field(..., description="Scene identifier")
-    project_id: str = Field(..., description="Project identifier") 
-    edit_prompt: str = Field(..., description="Edit instructions")
+# Video generation models are now in app.schemas.video_generation
 
 class TaskResponse(BaseModel):
     task_id: str
@@ -101,6 +95,7 @@ class TaskStatusResponse(BaseModel):
 
 # Mount API routers
 app.include_router(video_router, prefix=settings.API_PREFIX)
+app.include_router(video_generation_router, prefix=settings.API_PREFIX)
 
 # Basic routes
 @app.get("/", response_model=dict)
@@ -199,36 +194,9 @@ async def create_long_task(request: LongTaskRequest):
         message=f"Long running task created ({request.duration}s)"
     )
 
-@app.post("/tasks/video/generate", response_model=TaskResponse)
-async def create_video_generation_task(request: VideoGenerationRequest):
-    """Create a video generation task"""
-    task_data = {
-        "project_id": request.project_id,
-        "session_id": request.session_id,
-        "scene_count": request.scene_count,
-        "prompt": request.prompt
-    }
-    task = generate_video_task.delay(task_data)
-    return TaskResponse(
-        task_id=task.id,
-        status="queued",
-        message=f"Video generation task created for project {request.project_id}"
-    )
-
-@app.post("/tasks/video/edit", response_model=TaskResponse)
-async def create_scene_edit_task(request: SceneEditRequest):
-    """Create a scene editing task"""
-    task_data = {
-        "scene_id": request.scene_id,
-        "project_id": request.project_id,
-        "edit_prompt": request.edit_prompt
-    }
-    task = edit_scene_task.delay(task_data)
-    return TaskResponse(
-        task_id=task.id,
-        status="queued", 
-        message=f"Scene edit task created for scene {request.scene_id}"
-    )
+# Video generation tasks are now handled by the dedicated routers:
+# - /api/v1/video-generation/* for high-level workflows
+# - /api/v1/video/agents/* for low-level agent operations
 
 @app.get("/tasks/{task_id}/status", response_model=TaskStatusResponse)
 async def get_task_status(task_id: str):
