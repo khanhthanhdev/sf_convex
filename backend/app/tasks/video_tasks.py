@@ -26,23 +26,18 @@ from app.adapters.video_adapters import (
     CodeGenAdapter,
     VideoRenderAdapter,
 )
+from backend.convex.functions import update_scene_status as convex_update_scene_status  # type: ignore
 
 def _load_model(model_name: str):
     """Instantiate a text/VLM model by name using LiteLLM wrapper from agents.
     Fallback to a simple stub that echoes requests if import fails.
     """
     try:
-        try:
-            from agents.mllm_tools.litellm import LiteLLMWrapper  # type: ignore
-        except Exception:
-            # Some repos expose it at top-level mllm_tools
-            from mllm_tools.litellm import LiteLLMWrapper  # type: ignore
-        return LiteLLMWrapper(model_name=model_name, temperature=0.7, print_cost=True, verbose=False, use_langfuse=False)
-    except Exception as e:  # pragma: no cover
-        class _EchoModel:
-            def __call__(self, *args, **kwargs):
-                return json.dumps({"warning": f"LiteLLM not available: {e}", "args": str(args)})
-        return _EchoModel()
+        from agents.mllm_tools.litellm import LiteLLMWrapper  # type: ignore
+    except Exception:
+        # Some repos expose it at top-level mllm_tools
+        from mllm_tools.litellm import LiteLLMWrapper  # type: ignore
+    return LiteLLMWrapper(model_name=model_name, temperature=0.7, print_cost=True, verbose=False, use_langfuse=False)
 
 @celery_app.task(bind=True, name="generate_video_task", queue="render")
 def generate_video_task(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -354,7 +349,40 @@ def render_scene_task(self, payload: Dict[str, Any]) -> Dict[str, Any]:
                 quality=quality,
             )
         )
-        return {"topic": topic, "scene_number": scene_number, "version": version, "error": error, "code": final_code}
+        # Include S3 artifact URLs when available
+        artifacts: Dict[str, Optional[str]] = {}
+        try:
+            artifacts = adapter.get_scene_artifacts(topic=topic, scene_number=scene_number, version=version)
+        except Exception as e:
+            # Non-fatal; keep compatibility
+            artifacts = {"s3_video_url": None, "s3_srt_url": None, "s3_code_url": None}
+            if os.getenv("DEBUG", "1") in {"1", "true", "yes"}:
+                print(f"render_scene_task: get_scene_artifacts failed: {e}")
+
+        # Persist S3 URL to Convex when possible
+        try:
+            scene_id: Optional[str] = payload.get("scene_id")
+            s3_video_url = artifacts.get("s3_video_url")
+            if scene_id and s3_video_url:
+                # Update the scene with the S3 video URL; mark as ready if no error
+                convex_update_scene_status(
+                    scene_id=scene_id,
+                    status=("ready" if not error else "error"),  # type: ignore[arg-type]
+                    error_message=(error or None),
+                    s3_chunk_url=s3_video_url,
+                )
+        except Exception as e:
+            if os.getenv("DEBUG", "1") in {"1", "true", "yes"}:
+                print(f"render_scene_task: failed to update Convex with S3 URL: {e}")
+
+        return {
+            "topic": topic,
+            "scene_number": scene_number,
+            "version": version,
+            "error": error,
+            "code": final_code,
+            **artifacts,
+        }
     except Exception as e:
         raise self.retry(exc=e, countdown=30, max_retries=2)
 
@@ -367,7 +395,8 @@ def combine_videos_task(self, payload: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         adapter = VideoRenderAdapter()
-        output_path = asyncio.run(adapter.combine_videos(topic=topic, use_hardware_acceleration=use_hw))
-        return {"topic": topic, "output": output_path}
+        output_url_or_path = asyncio.run(adapter.combine_videos(topic=topic, use_hardware_acceleration=use_hw))
+        # Maintain backward compatibility with 'output' while adding 'output_url'
+        return {"topic": topic, "output": output_url_or_path, "output_url": output_url_or_path}
     except Exception as e:
         raise self.retry(exc=e, countdown=30, max_retries=2)

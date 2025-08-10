@@ -600,7 +600,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
         <div className="relative h-12 bg-gray-200 rounded">
           {sceneBoundaries.map((boundary) => {
             const leftPercent = (boundary.startFrame / totalFrames) * 100;
-            const widthPercent = ((boundary.endFrame - boundary.startFrame) / totalFrames) * 100;
+            const widthPercent = totalFrames
+              ? ((boundary.endFrame - boundary.startFrame) / totalFrames) * 100
+              : 0;
             
             return (
               <div

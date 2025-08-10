@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Dict
 
 # Best-effort import of project root so that `agents` package is importable
 try:
@@ -27,6 +27,8 @@ try:
     from agents.src.core.video_planner import EnhancedVideoPlanner
     from agents.src.core.code_generator import CodeGenerator
     from agents.src.core.video_renderer import OptimizedVideoRenderer
+    # S3 storage helpers (agents side)
+    from agents.src.storage.s3_storage import S3Storage, key_for_local_path, sanitize_topic_to_prefix
 except Exception as e:  # pragma: no cover - defensive import
     raise ImportError(
         f"Failed to import core agents from 'agents'. Ensure PYTHONPATH includes project root. Error: {e}"
@@ -237,13 +239,115 @@ class VideoRenderAdapter:
             session_id=session_id,
         )
 
+    def get_scene_artifacts(self, *, topic: str, scene_number: int, version: int) -> Dict[str, Optional[str]]:
+        """Return S3 URLs for rendered scene artifacts (mp4/srt/code).
+
+        Also optionally upload the code file when S3_UPLOAD_ON_WRITE is enabled.
+        """
+        file_prefix = _sanitize_topic_to_prefix(topic)
+        media_dir = str(Path(self.output_dir) / file_prefix / "media")
+        code_dir = str(Path(self.output_dir) / file_prefix / f"scene{scene_number}" / "code")
+
+        # Try to locate rendered mp4 via renderer helper
+        s3_video_url: Optional[str] = None
+        s3_srt_url: Optional[str] = None
+        s3_code_url: Optional[str] = None
+
+        try:
+            storage = S3Storage()
+            prefer_presigned = False if os.getenv("S3_PUBLIC_BASE_URL") else True
+            # Find video path
+            video_path = self.renderer._find_rendered_video(file_prefix, scene_number, version, media_dir)
+            video_key = key_for_local_path(
+                local_path=video_path,
+                topic_name=file_prefix,
+                output_dir=self.output_dir,
+            )
+            # Upload is idempotent; ensure present
+            if str(os.getenv("S3_UPLOAD_ON_WRITE", "false").lower()) in {"1","true","yes"}:
+                storage.upload_file(video_path, key=video_key)
+            s3_video_url = storage.url_for(video_key, prefer_presigned=prefer_presigned)
+
+            # Subtitle next to mp4
+            srt_path = str(Path(video_path).with_suffix(".srt"))
+            if os.path.exists(srt_path):
+                srt_key = key_for_local_path(
+                    local_path=srt_path,
+                    topic_name=file_prefix,
+                    output_dir=self.output_dir,
+                )
+                if str(os.getenv("S3_UPLOAD_ON_WRITE", "false").lower()) in {"1","true","yes"}:
+                    storage.upload_file(srt_path, key=srt_key)
+                s3_srt_url = storage.url_for(srt_key, prefer_presigned=prefer_presigned)
+        except Exception as e:
+            if _get_setting("DEBUG", True):
+                print(f"get_scene_artifacts: could not resolve video/srt URLs: {e}")
+
+        # Code file path
+        try:
+            code_file = Path(code_dir) / f"{file_prefix}_scene{scene_number}_v{version}.py"
+            if code_file.exists():
+                storage = 'storage' in locals() and storage or S3Storage()
+                prefer_presigned = False if os.getenv("S3_PUBLIC_BASE_URL") else True
+                code_key = key_for_local_path(
+                    local_path=str(code_file),
+                    topic_name=file_prefix,
+                    output_dir=self.output_dir,
+                )
+                if str(os.getenv("S3_UPLOAD_ON_WRITE", "false").lower()) in {"1","true","yes"}:
+                    storage.upload_file(str(code_file), key=code_key)
+                s3_code_url = storage.url_for(code_key, prefer_presigned=prefer_presigned)
+        except Exception as e:
+            if _get_setting("DEBUG", True):
+                print(f"get_scene_artifacts: could not resolve code URL: {e}")
+
+        return {
+            "s3_video_url": s3_video_url,
+            "s3_srt_url": s3_srt_url,
+            "s3_code_url": s3_code_url,
+        }
+
     async def combine_videos(self, topic: str, *, use_hardware_acceleration: Optional[bool] = None) -> str:
-        return await self.renderer.combine_videos_optimized(
+        # Render combined local outputs first
+        output_path = await self.renderer.combine_videos_optimized(
             topic=topic,
             use_hardware_acceleration=bool(
                 _get_setting("USE_GPU", use_hardware_acceleration if use_hardware_acceleration is not None else False)
             ),
         )
+
+        # Optionally upload to S3 and return URL
+        try:
+            if str(_get_setting("S3_UPLOAD_ON_WRITE", os.environ.get("S3_UPLOAD_ON_WRITE", "false")).lower()) in {"1","true","yes"}:
+                storage = S3Storage()
+                # Compute S3 keys mirroring local structure under topic prefix
+                file_prefix = sanitize_topic_to_prefix(topic)
+                video_key = key_for_local_path(
+                    local_path=output_path,
+                    topic_name=file_prefix,
+                    output_dir=self.output_dir,
+                )
+                storage.upload_file(output_path, key=video_key)
+                video_url = storage.url_for(video_key)
+
+                # Also attempt to upload the combined subtitle if present
+                srt_path = str(Path(output_path).with_suffix(".srt"))
+                if os.path.exists(srt_path):
+                    srt_key = key_for_local_path(
+                        local_path=srt_path,
+                        topic_name=file_prefix,
+                        output_dir=self.output_dir,
+                    )
+                    storage.upload_file(srt_path, key=srt_key)
+                
+                # Return the S3 video URL for clients to consume
+                return video_url
+        except Exception as e:
+            # Fall back to local path on any upload/URL error
+            if _get_setting("DEBUG", True):
+                print(f"S3 upload skipped or failed in combine_videos: {e}")
+
+        return output_path
 
     def cleanup_cache(self, max_age_days: int = 7) -> None:
         self.renderer.cleanup_cache(max_age_days=max_age_days)

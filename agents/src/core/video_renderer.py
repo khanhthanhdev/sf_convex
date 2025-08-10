@@ -25,6 +25,14 @@ from src.core.parse_video import (
     image_with_most_non_black_space
 )
 
+# Optional S3 storage integration
+try:
+    from agents.src.storage.s3_storage import S3Storage, key_for_local_path, sanitize_topic_to_prefix
+except Exception:
+    S3Storage = None  # type: ignore
+    key_for_local_path = None  # type: ignore
+    sanitize_topic_to_prefix = None  # type: ignore
+
 
 class OptimizedVideoRenderer:
     """Enhanced video renderer with significant performance optimizations."""
@@ -166,6 +174,33 @@ class OptimizedVideoRenderer:
 
                 # Find the rendered video
                 video_path = self._find_rendered_video(file_prefix, curr_scene, curr_version, media_dir)
+                
+                # Optionally upload rendered assets to S3 on write
+                try:
+                    if (
+                        S3Storage is not None
+                        and str(os.environ.get("S3_UPLOAD_ON_WRITE", "false").lower()) in {"1", "true", "yes"}
+                    ):
+                        storage = S3Storage()
+                        topic_prefix = file_prefix if sanitize_topic_to_prefix is None else sanitize_topic_to_prefix(file_prefix)
+                        video_key = key_for_local_path(
+                            local_path=video_path,
+                            topic_name=topic_prefix,
+                            output_dir=self.output_dir,
+                        ) if key_for_local_path is not None else f"{topic_prefix}/{Path(video_path).relative_to(self.output_dir).as_posix()}"
+                        storage.upload_file(video_path, key=video_key)
+
+                        # Upload subtitle if present alongside mp4
+                        srt_path = os.path.splitext(video_path)[0] + ".srt"
+                        if os.path.exists(srt_path):
+                            srt_key = key_for_local_path(
+                                local_path=srt_path,
+                                topic_name=topic_prefix,
+                                output_dir=self.output_dir,
+                            ) if key_for_local_path is not None else f"{topic_prefix}/{Path(srt_path).relative_to(self.output_dir).as_posix()}"
+                            storage.upload_file(srt_path, key=srt_key)
+                except Exception as upload_err:
+                    print(f"S3 upload skipped or failed for scene {curr_scene}: {upload_err}")
                 
                 # Save to cache
                 self._save_to_cache(current_code, quality, video_path)
