@@ -14,3 +14,11 @@ from .scenes import (
     list_scenes,
     get_next_queued_scene,
 )
+
+from .assets import (
+    update_scene_assets,
+    update_session_assets,
+    batch_update_assets,
+    delete_asset_references,
+    get_assets_by_entity,
+)

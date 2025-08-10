@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # Convex Configuration
     CONVEX_WEBHOOK_SECRET: str = "dev-secret-change-in-production"
     CONVEX_ACTION_BASE_URL: str = "http://localhost:3000"
+    CONVEX_DEPLOYMENT_URL: str = "your-convex-deployment-url"  # Replace with actual deployment URL
     
     # AWS/S3 Configuration
     AWS_ACCESS_KEY_ID: Optional[str] = None
