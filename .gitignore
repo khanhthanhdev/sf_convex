@@ -10,4 +10,7 @@ wheels/
 .venv
 models
 
-.env 
+.env
+logs/
+output/
+examples/

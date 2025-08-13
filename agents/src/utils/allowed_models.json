@@ -3,6 +3,7 @@
     "openai/gpt-4o-mini",
     "openai/gpt-4o",
     "openai/gpt-3.5-turbo",
+    "openao/o3-mini",
     "gemini/gemini-1.5-pro-002",
     "gemini/gemini-1.5-flash-002",
     "github/gpt-4.1",

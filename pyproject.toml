@@ -3,8 +3,9 @@ name = "sf-full"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 dependencies = [
+    "aiofiles>=24.1.0",
     "aiohttp~=3.9.0",
     "annotated-types~=0.7.0",
     "astrapy~=1.5.0",
@@ -55,11 +56,12 @@ dependencies = [
     "manim-dsa~=0.2.0",
     "manim-ml~=0.0.24",
     "manim-physics~=0.4.0",
-    "manim-voiceover~=0.3.7",
+    "manim-voiceover>=0.3.7",
     "manimpango~=0.6.0",
     "mapbox-earcut~=1.0.2",
     "markdown-it-py~=3.0.0",
     "mcp~=1.0.0",
+    "mcp-use>=1.2.6",
     "mdurl~=0.1.2",
     "moderngl~=5.12.0",
     "moviepy~=2.1.2",
@@ -73,6 +75,7 @@ dependencies = [
     "pillow>=10.4.0",
     "proto-plus~=1.25.0",
     "protobuf~=5.28.3",
+    "psutil>=7.0.0",
     "pyasn1~=0.6.1",
     "pyasn1-modules~=0.4.1",
     "pyaudio~=0.2.14",
@@ -87,7 +90,7 @@ dependencies = [
     "pyparsing~=3.2.0",
     "pyrr~=0.10.3",
     "pysrt>=1.1.2",
-    "python-dotenv~=0.21.1",
+    "python-dotenv~=1.1.0",
     "python-jose[cryptography]~=3.3.0",
     "python-multipart~=0.0.12",
     "python-slugify~=8.0.4",
@@ -117,3 +120,7 @@ dependencies = [
     "websockets~=12.0",
     "yt-dlp>=2025.7.21",
 ]
+
+[tool.uv]
+override-dependencies = ["python-dotenv==0.21.1"] 
+

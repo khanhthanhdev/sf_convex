@@ -114,7 +114,6 @@
   - Modify scene rendering workflow to upload assets with proper metadata
   - Update video session completion to generate combined assets and manifests
   - Add asset cleanup during project deletion workflow
-  - Write end-to-end integration tests for complete video generation flow
   - _Requirements: 1.1, 2.1, 2.2, 4.1, 4.2_
 
 - [ ] 13. Update frontend components for S3-Convex asset integration

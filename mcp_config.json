@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "/home/thanhkt/.nvm/versions/node/v22.18.0/bin/npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "env": {
+        "PATH": "/home/thanhkt/.nvm/versions/node/v22.18.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "mcp_context7_resolve_library_id",
+        "mcp_context7_get_library_docs"
+      ]
+    }
+  }
+}
